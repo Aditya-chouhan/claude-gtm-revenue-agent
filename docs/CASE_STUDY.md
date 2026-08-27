@@ -19,11 +19,15 @@ Salesforce, HubSpot, and Clay adapters translate the result into realistic field
 - Real public fixture: 11 openFDA enforcement records across 5 recalling firms
 - Dated live-source run: 25 records received, 24 persisted across 10 accounts, 1 rejected for a missing external identity
 - Offline pipeline: idempotent ingest, enrichment, score, 5 simulated briefs, evaluation report
-- Automated verification: 14 passing tests and 84% statement coverage on 2026-08-27
-- Live Claude interface: strict tools, JSON Schema output, retries, rate limiting, budget and cost tracking
+- Adversarial evaluation: 7 deliberately corrupted briefs (mutated score, fabricated evidence IDs, fabricated contact details, unlabelled speculation) fed to the grounding checker — see `evidence/adversarial_report_<date>.json` for the catch rate
+- Automated verification: see `evidence/pytest_<date>.txt` for the committed test/coverage output on that commit
 - Operational surface: Postgres migration, FastAPI health/readiness/OpenAPI, Prometheus metrics, structured JSON logs, Docker Compose, and GitHub Actions
 
 These are engineering results. They are not campaign or revenue results.
+
+## Implemented but not yet executed
+
+- **Live Claude interface** — strict tools, JSON Schema output, retries, rate limiting, budget and cost tracking are all implemented and unit-tested against a fake client (see `tests/test_agent.py`), the same way Salesforce/HubSpot/Clay delivery is implemented behind guards below. Neither has been exercised against the real service yet. No run receipt with real token counts, latency, or cost exists in this repo until that happens — until then, treat the live Claude path as reviewed code, not reproducible evidence.
 
 ## Decisions that matter
 

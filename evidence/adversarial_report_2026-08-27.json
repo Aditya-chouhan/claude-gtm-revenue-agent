@@ -1,0 +1,71 @@
+{
+  "dataset": "adversarial_fixtures_v1",
+  "cases": 7,
+  "caught": 7,
+  "catch_rate": 1.0,
+  "results": [
+    {
+      "label": "mutated_score",
+      "corruption": "Claude changes the disclosed deterministic score",
+      "expected_failure_substring": "changed the deterministic score",
+      "caught": true,
+      "failures": [
+        "model changed the deterministic score"
+      ]
+    },
+    {
+      "label": "wrong_signal_id",
+      "corruption": "An observation cites a signal_id that does not exist",
+      "expected_failure_substring": "did not map to stored source evidence",
+      "caught": true,
+      "failures": [
+        "one or more observations did not map to stored source evidence"
+      ]
+    },
+    {
+      "label": "wrong_source_url",
+      "corruption": "An observation cites a real signal_id but a fabricated source_url",
+      "expected_failure_substring": "did not map to stored source evidence",
+      "caught": true,
+      "failures": [
+        "one or more observations did not map to stored source evidence"
+      ]
+    },
+    {
+      "label": "account_name_mismatch",
+      "corruption": "The brief names a different company than the one analyzed",
+      "expected_failure_substring": "account name mismatch",
+      "caught": true,
+      "failures": [
+        "account name mismatch"
+      ]
+    },
+    {
+      "label": "fabricated_email",
+      "corruption": "A person-like email address appears in contact-facing text",
+      "expected_failure_substring": "person-like email or phone contact",
+      "caught": true,
+      "failures": [
+        "output contains a person-like email or phone contact"
+      ]
+    },
+    {
+      "label": "fabricated_phone",
+      "corruption": "A phone number appears in contact-facing text",
+      "expected_failure_substring": "person-like email or phone contact",
+      "caught": true,
+      "failures": [
+        "output contains a person-like email or phone contact"
+      ]
+    },
+    {
+      "label": "unlabeled_hypothesis",
+      "corruption": "A hypothesis is stated as fact instead of being explicitly labelled",
+      "expected_failure_substring": "hypothesis not explicitly labelled",
+      "caught": true,
+      "failures": [
+        "hypothesis not explicitly labelled"
+      ]
+    }
+  ]
+}

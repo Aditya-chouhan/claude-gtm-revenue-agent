@@ -1,0 +1,30 @@
+......................                                                   [100%]
+================================ tests coverage ================================
+______________ coverage: platform darwin, python 3.11.15-final-0 _______________
+
+Name                                      Stmts   Miss  Cover   Missing
+-----------------------------------------------------------------------
+src/revenue_agent/__init__.py                 1      0   100%
+src/revenue_agent/agent/__init__.py           0      0   100%
+src/revenue_agent/agent/claude.py           199     23    88%   88, 92-93, 99, 105-107, 113, 115, 133, 227, 250, 274, 298-299, 338, 369-379, 384, 394, 398, 415
+src/revenue_agent/api.py                     77     22    71%   78-82, 91-113, 123-124, 138, 141-142
+src/revenue_agent/cli.py                     47     47     0%   1-76
+src/revenue_agent/config.py                  37      1    97%   48
+src/revenue_agent/costs.py                   17      1    94%   38
+src/revenue_agent/db.py                      22      4    82%   29-33
+src/revenue_agent/evaluation.py              74      7    91%   28-29, 82-91, 220
+src/revenue_agent/gateways/__init__.py        0      0   100%
+src/revenue_agent/gateways/base.py           31      5    84%   43, 46, 51-53
+src/revenue_agent/gateways/providers.py      82     20    76%   56-70, 106-116, 137-145
+src/revenue_agent/ingest/__init__.py          0      0   100%
+src/revenue_agent/ingest/openfda.py          52     15    71%   23, 26-27, 55-64, 70, 74
+src/revenue_agent/ingest/service.py          55      5    91%   30-33, 47-48
+src/revenue_agent/main.py                    27      0   100%
+src/revenue_agent/models.py                  75      0   100%
+src/revenue_agent/observability.py           33      0   100%
+src/revenue_agent/pipeline.py                26      0   100%
+src/revenue_agent/schemas.py                131      0   100%
+src/revenue_agent/scoring.py                 48      6    88%   41, 45-49
+-----------------------------------------------------------------------
+TOTAL                                      1034    156    85%
+22 passed in 2.92s

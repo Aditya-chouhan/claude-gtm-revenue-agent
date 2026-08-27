@@ -38,7 +38,7 @@ The deterministic layer decides what the source data supports. Claude turns that
 - FastAPI service with health, readiness, OpenAPI, account, pipeline, analysis, integration-preview, and Prometheus endpoints
 - Salesforce, HubSpot, and Clay payload boundaries with fail-closed live-write switches
 - Importable n8n workflow for scheduling the FastAPI pipeline and polling run output
-- Deterministic mock mode, evaluation harness, tests, Docker Compose, and GitHub Actions
+- Deterministic mock mode, an adversarial evaluation harness (seven deliberately corrupted briefs the grounding checks must reject — the mock mode alone cannot fail by construction, see [Evaluation](docs/EVALUATION.md)), tests, Docker Compose, and GitHub Actions
 
 ## Data and result boundaries
 
@@ -131,7 +131,7 @@ Set `WORKFLOW_API_KEY` to require an `x-api-key` header on the two cost-bearing 
 
 The Anthropic SDK's implicit retries are disabled so the repository's retry behavior is visible and testable. Retryable connection, timeout, 429, and 5xx failures use provider `retry-after` when available or capped exponential backoff with jitter. A local limiter smooths calls inside one process; Anthropic's organization-level limits remain authoritative.
 
-Each agent run stores input/output tokens and an estimated cost using environment-configured prices. The defaults in `.env.example` were checked against Claude Sonnet 5 introductory API pricing on 2026-08-27 and are deliberately configuration—not immutable truth. Update them when pricing changes. The budget guard closes new live runs when stored month-to-date estimated cost reaches `CLAUDE_MONTHLY_BUDGET_USD`.
+Each agent run stores input/output tokens and an estimated cost using environment-configured prices. The defaults in `.env.example` were checked against Claude Sonnet 5 **introductory** API pricing on 2026-08-27 and are deliberately configuration—not immutable truth. **That introductory pricing ends 2026-08-31**; from 2026-09-01 the standard rate is $3.00 / $15.00 per MTok, and every `estimated_cost_usd` recorded under the old defaults understates real spend by roughly a third on input and half on output. Update `CLAUDE_INPUT_USD_PER_MILLION` / `CLAUDE_OUTPUT_USD_PER_MILLION` on that date. The budget guard closes new live runs when stored month-to-date estimated cost reaches `CLAUDE_MONTHLY_BUDGET_USD`.
 
 ## Integration safety
 
@@ -151,7 +151,16 @@ No private credential, guessed token, fabricated contact, or claimed sync result
 .venv/bin/mypy src
 .venv/bin/pytest --cov=src/revenue_agent --cov-report=term-missing
 docker compose config --quiet
+
+# Prove the grounding checks reject bad output — not just that a well-behaved
+# mock agent passes them:
+DATABASE_URL=sqlite:///./revenue_agent.db AUTO_CREATE_SCHEMA=true \
+  .venv/bin/revenue-agent pipeline --source-mode fixture --agent-mode none --analyze-top 0
+DATABASE_URL=sqlite:///./revenue_agent.db AUTO_CREATE_SCHEMA=true \
+  .venv/bin/revenue-agent evaluate --mode adversarial
 ```
+
+Committed, unedited command output for both the test suite and the adversarial evaluation is in [`evidence/`](evidence/README.md) — see it for what each file proves and which environment produced it.
 
 See [Architecture](docs/ARCHITECTURE.md), [Evaluation](docs/EVALUATION.md), [Integration contracts](docs/INTEGRATIONS.md), and the [portfolio case study](docs/CASE_STUDY.md).
 

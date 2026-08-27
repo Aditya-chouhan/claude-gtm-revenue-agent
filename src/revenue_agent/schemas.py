@@ -155,3 +155,27 @@ class EvaluationReport(BaseModel):
     passed: int
     pass_rate: float
     results: list[EvaluationCaseResult]
+
+
+class AdversarialCaseResult(BaseModel):
+    """One deliberately-corrupted brief and whether the evaluator caught it.
+
+    Unlike `EvaluationCaseResult` against a mock/live run — where a well-behaved
+    agent is expected to pass — every case here is built to fail. `caught=True`
+    means the evaluator correctly flagged it; `caught=False` is a real defect in
+    the grounding checks, not noise.
+    """
+
+    label: str
+    corruption: str
+    expected_failure_substring: str
+    caught: bool
+    failures: list[str]
+
+
+class AdversarialReport(BaseModel):
+    dataset: str
+    cases: int
+    caught: int
+    catch_rate: float
+    results: list[AdversarialCaseResult]

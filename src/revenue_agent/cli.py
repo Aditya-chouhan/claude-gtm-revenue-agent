@@ -4,12 +4,19 @@ import argparse
 import json
 
 import uvicorn
+from sqlalchemy import select
 
 from revenue_agent.config import get_settings
 from revenue_agent.db import Base, build_engine, build_session_factory
-from revenue_agent.evaluation import evaluate_completed_runs
+from revenue_agent.evaluation import evaluate_completed_runs, run_adversarial_evaluation
+from revenue_agent.models import Account
 from revenue_agent.pipeline import PipelineService
-from revenue_agent.schemas import EvaluationReport, PipelineRequest, PipelineResult
+from revenue_agent.schemas import (
+    AdversarialReport,
+    EvaluationReport,
+    PipelineRequest,
+    PipelineResult,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -27,7 +34,7 @@ def build_parser() -> argparse.ArgumentParser:
     pipeline.add_argument("--analyze-top", type=int, default=3)
 
     evaluate = subparsers.add_parser("evaluate", help="Evaluate stored mock or live runs")
-    evaluate.add_argument("--mode", choices=["mock", "live"], default="mock")
+    evaluate.add_argument("--mode", choices=["mock", "live", "adversarial"], default="mock")
     return parser
 
 
@@ -43,7 +50,7 @@ def main() -> None:
         Base.metadata.create_all(engine)
     factory = build_session_factory(engine)
     with factory() as session:
-        result: PipelineResult | EvaluationReport
+        result: PipelineResult | EvaluationReport | AdversarialReport
         if args.command == "pipeline":
             result = PipelineService(session, settings).run(
                 PipelineRequest(
@@ -53,6 +60,13 @@ def main() -> None:
                     analyze_top=args.analyze_top,
                 )
             )
+        elif args.mode == "adversarial":
+            account = session.scalar(select(Account).order_by(Account.score.desc()))
+            if account is None:
+                raise SystemExit(
+                    "No account in the store. Run 'pipeline' first to ingest and score accounts."
+                )
+            result = run_adversarial_evaluation(session, account)
         else:
             result = evaluate_completed_runs(session, args.mode)
         print(json.dumps(result.model_dump(mode="json"), indent=2))

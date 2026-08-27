@@ -97,8 +97,18 @@ def build_router(settings: Settings, factory: sessionmaker[Session]) -> APIRoute
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         run = agent.analyze(session, account)
         if run.status == "failed":
+            # grounding_rejected means our own anti-hallucination validator correctly
+            # rejected Claude's output — a 422 (the request was processed, the content
+            # failed validation), not a 502 (something upstream broke). Every other
+            # category is a genuine transport/agent failure and stays a 502.
+            status_code = 422 if run.error_type == "grounding_rejected" else 502
             raise HTTPException(
-                status_code=502, detail={"run_id": run.id, "error": run.error_message}
+                status_code=status_code,
+                detail={
+                    "run_id": run.id,
+                    "error_category": run.error_type,
+                    "error": run.error_message,
+                },
             )
         return run
 

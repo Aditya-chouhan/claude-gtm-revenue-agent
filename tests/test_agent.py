@@ -8,7 +8,12 @@ from pydantic import SecretStr
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from revenue_agent.agent.claude import ClaudeRevenueAgent, MockRevenueAgent
+from revenue_agent.agent.claude import (
+    ClaudeRevenueAgent,
+    GroundingRejected,
+    MockRevenueAgent,
+    categorize_agent_error,
+)
 from revenue_agent.config import Settings
 from revenue_agent.evaluation import evaluate_run
 from revenue_agent.models import Account, Signal
@@ -149,3 +154,54 @@ def test_retry_honors_retry_after(seeded_session: Session, settings: Settings) -
     run = agent.analyze(seeded_session, account)
     assert run.status == "failed"
     assert waits == [2.5]
+
+
+def test_categorize_agent_error_distinguishes_three_failure_classes() -> None:
+    assert categorize_agent_error(GroundingRejected("bad brief")) == "grounding_rejected"
+
+    class RateLimitError(Exception):
+        pass
+
+    assert categorize_agent_error(RateLimitError("429")) == "transport_error"
+    assert categorize_agent_error(RuntimeError("no final JSON")) == "agent_error"
+    # A GroundingRejected is a ValueError, but must not fall through to agent_error
+    # just because it also matches that broader class.
+    assert isinstance(GroundingRejected("x"), ValueError)
+
+
+def test_grounding_rejection_is_categorized_end_to_end(
+    seeded_session: Session, settings: Settings
+) -> None:
+    """A live run where Claude mutates the score must fail as grounding_rejected,
+    not as a generic/unlabelled error — this is what the API status-code split and
+    any real monitoring on error_type depend on."""
+    account = seeded_session.scalar(select(Account).order_by(Account.name))
+    assert account is not None
+    signal = seeded_session.scalar(select(Signal).where(Signal.account_id == account.id))
+    assert signal is not None
+    corrupted_brief = {
+        "account_name": account.name,
+        "qualification": "warm",
+        "deterministic_score": (account.score + 5) % 101,  # mutated — must be rejected
+        "score_summary": "The disclosed deterministic trigger score is unchanged.",
+        "observations": [
+            {"fact": signal.evidence, "signal_id": signal.id, "source_url": signal.source_url}
+        ],
+        "hypotheses": ["Hypothesis—not a fact: a quality leader may value faster monitoring."],
+        "recommended_action": "human_review",
+        "role_target": "VP Quality",
+        "outreach_angle": "Ask a human reviewer whether the public enforcement signal is relevant.",
+        "risks": ["A public trigger does not prove purchase intent."],
+        "confidence": 0.65,
+    }
+    fake = FakeClient([response([{"type": "text", "text": json.dumps(corrupted_brief)}], 150, 60)])
+    live_settings = settings.model_copy(update={"anthropic_api_key": SecretStr("test-key")})
+
+    run = ClaudeRevenueAgent(live_settings, client=fake, sleep=lambda _: None).analyze(
+        seeded_session, account
+    )
+
+    assert run.status == "failed"
+    assert run.error_type == "grounding_rejected"
+    assert "GroundingRejected" in run.error_message
+    assert "changed the deterministic score" in run.error_message

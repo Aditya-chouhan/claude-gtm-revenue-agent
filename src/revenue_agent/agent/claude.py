@@ -22,6 +22,43 @@ from revenue_agent.scoring import scoring_policy
 LOGGER = logging.getLogger(__name__)
 PROMPT_VERSION = "account-brief-v1"
 
+# Retryable-connection class names from the Anthropic SDK. Matched by name (not
+# isinstance) so this stays correct against both the real SDK and the FakeClient
+# used in tests, without importing anthropic's exception types into this module.
+_TRANSPORT_ERROR_TYPES = {
+    "APIConnectionError",
+    "APITimeoutError",
+    "RateLimitError",
+    "InternalServerError",
+    "APIStatusError",
+}
+
+
+class GroundingRejected(ValueError):
+    """Raised by `_validate_grounding` when Claude's output fails a safety check.
+
+    Deliberately a distinct type from a bare `ValueError` so `analyze()` can tell
+    "our own safety net correctly rejected the model's output" apart from "the
+    request to Claude never came back" or "Claude returned something we couldn't
+    parse" — three very different operational signals that a raw exception class
+    name does not reliably separate (a JSON parse failure can also raise
+    `ValueError`, and previously collapsed into the same `error_type`).
+    """
+
+
+def categorize_agent_error(exc: Exception) -> str:
+    """Bucket an `analyze()` failure into one of three operationally distinct categories.
+
+    `grounding_rejected` is not a system defect — it is the anti-hallucination
+    validator working as designed and should never be treated the same as a
+    transport failure in monitoring or alerting.
+    """
+    if isinstance(exc, GroundingRejected):
+        return "grounding_rejected"
+    if type(exc).__name__ in _TRANSPORT_ERROR_TYPES:
+        return "transport_error"
+    return "agent_error"
+
 SYSTEM_PROMPT = """You are an evidence-grounded GTM revenue analyst.
 Use the supplied tools before reaching a conclusion. Separate sourced observations from
 hypotheses. Never invent a person, email, phone number, customer relationship, revenue
@@ -129,11 +166,18 @@ class ClaudeRevenueAgent:
             AGENT_COST.labels(self.settings.claude_model).inc(run.estimated_cost_usd)
         except Exception as exc:
             run.status = "failed"
-            run.error_type = type(exc).__name__
-            run.error_message = str(exc)[:2000]
+            run.error_type = categorize_agent_error(exc)
+            run.error_message = f"{type(exc).__name__}: {exc}"[:2000]
             AGENT_CALLS.labels("live", "failed").inc()
-            LOGGER.exception(
-                "claude_agent_failed", extra={"account_id": account.id, "run_id": run.id}
+            is_rejection = run.error_type == "grounding_rejected"
+            log_level = LOGGER.warning if is_rejection else LOGGER.exception
+            log_level(
+                "claude_agent_failed",
+                extra={
+                    "account_id": account.id,
+                    "run_id": run.id,
+                    "error_category": run.error_type,
+                },
             )
         finally:
             run.latency_ms = int((time.perf_counter() - started) * 1000)
@@ -337,9 +381,9 @@ class ClaudeRevenueAgent:
     @staticmethod
     def _validate_grounding(session: Session, account: Account, brief: AccountBrief) -> None:
         if brief.account_name.casefold() != account.name.casefold():
-            raise ValueError("Claude account_name did not match the requested account")
+            raise GroundingRejected("Claude account_name did not match the requested account")
         if brief.deterministic_score != account.score:
-            raise ValueError("Claude changed the deterministic score")
+            raise GroundingRejected("Claude changed the deterministic score")
         signals = {
             item.id: item
             for item in session.scalars(select(Signal).where(Signal.account_id == account.id))
@@ -347,9 +391,11 @@ class ClaudeRevenueAgent:
         for observation in brief.observations:
             signal = signals.get(observation.signal_id)
             if signal is None or str(observation.source_url) != signal.source_url:
-                raise ValueError("Claude returned an observation with invalid evidence provenance")
+                raise GroundingRejected(
+                    "Claude returned an observation with invalid evidence provenance"
+                )
         if "@" in brief.role_target:
-            raise ValueError("role_target must be a role, not an email address")
+            raise GroundingRejected("role_target must be a role, not an email address")
 
 
 class MockRevenueAgent:
