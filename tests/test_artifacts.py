@@ -41,3 +41,16 @@ def test_committed_real_and_simulated_data_are_separate() -> None:
 
 def test_public_source_identity_is_stable_across_runs() -> None:
     assert stable_id("signal", "openfda:D-0656-2026") == ("2983a782-088f-53ce-86f6-f13b82af2eeb")
+
+
+def test_evidence_console_preserves_claim_boundaries() -> None:
+    index = (ROOT / "demo/index.html").read_text(encoding="utf-8")
+    app = (ROOT / "demo/app.js").read_text(encoding="utf-8")
+    smoke = (ROOT / ".github/workflows/live-signal-smoke.yml").read_text(encoding="utf-8")
+
+    assert "Mock · not Claude" in index
+    assert "Claude API calls</dt><dd>0 evidenced" in index
+    assert "CRM / Clay writes</dt><dd>0" in index
+    assert "Pipeline or revenue</dt><dd>Not claimed" in index
+    assert "would_write: false" in app
+    assert "--source-mode live --agent-mode none" in smoke

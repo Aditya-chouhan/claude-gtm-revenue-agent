@@ -39,6 +39,7 @@ The deterministic layer decides what the source data supports. Claude turns that
 - Salesforce, HubSpot, and Clay payload boundaries with fail-closed live-write switches
 - Importable n8n workflow for scheduling the FastAPI pipeline and polling run output
 - Deterministic mock mode, an adversarial evaluation harness (seven deliberately corrupted briefs the grounding checks must reject — the mock mode alone cannot fail by construction, see [Evaluation](docs/EVALUATION.md)), tests, Docker Compose, and GitHub Actions
+- Public evidence console and scheduled live-source smoke receipt
 
 ## Data and result boundaries
 
@@ -54,6 +55,21 @@ The deterministic layer decides what the source data supports. Claude turns that
 The fixture is small by design: it lets a reviewer reproduce the full pipeline without a network call. It is not a representative market sample and says nothing about real purchase intent.
 
 The dated live receipt came from the implemented network path. It ran with `agent_mode=none`, so it proves signal ingestion without being misrepresented as a Claude execution.
+
+## Live evidence console
+
+The recruiter-facing [evidence console](https://aditya-chouhan.github.io/claude-gtm-revenue-agent/) turns the repository's committed proof into an inspectable review experience. It shows the real public-data receipt, recomputes the disclosed score from the committed snapshot, renders the labelled mock brief, and exposes preview-only Salesforce, HubSpot, and Clay payloads.
+
+The **Verify with openFDA now** control performs a read-only browser request to the public API and recomputes account scores locally. That result is not persisted and is never described as a backend deployment, Claude execution, CRM sync, or revenue outcome.
+
+GitHub Actions also runs a weekly live public-signal smoke test with `agent_mode=none`, validates that records were received, and publishes the JSON receipt as a workflow artifact. No secret or paid API is required.
+
+Local console preview:
+
+```bash
+make demo
+# open http://localhost:4173
+```
 
 ## Quick start — no API keys
 

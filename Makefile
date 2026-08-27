@@ -1,4 +1,4 @@
-.PHONY: install test lint typecheck verify run pipeline migrate
+.PHONY: install test lint typecheck verify run pipeline migrate demo
 
 install:
 	python3.12 -m venv .venv
@@ -23,3 +23,12 @@ pipeline:
 
 migrate:
 	.venv/bin/alembic upgrade head
+
+demo:
+	rm -rf .pages-preview
+	mkdir -p .pages-preview/data
+	cp -R demo/. .pages-preview/
+	cp data/real/openfda_snapshot.json .pages-preview/data/openfda_snapshot.json
+	cp data/real/live_ingestion_receipt_2026-08-27.json .pages-preview/data/live_ingestion_receipt.json
+	cp data/simulated/sample_account_brief.json .pages-preview/data/sample_account_brief.json
+	python3 -m http.server 4173 --directory .pages-preview

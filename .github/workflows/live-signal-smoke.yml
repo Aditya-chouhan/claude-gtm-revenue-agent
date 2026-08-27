@@ -1,0 +1,51 @@
+name: Live public-signal smoke test
+
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-openfda-path:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      APP_ENV: smoke
+      DATABASE_URL: sqlite:///./live-signal-smoke.sqlite3
+      AUTO_CREATE_SCHEMA: "true"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install runtime
+        run: python -m pip install .
+      - name: Run read-only live ingestion
+        run: revenue-agent pipeline --source-mode live --agent-mode none --limit 25 --analyze-top 0 > live-signal-smoke.json
+      - name: Validate receipt boundary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          receipt = json.loads(Path("live-signal-smoke.json").read_text())
+          ingestion = receipt["ingestion"]
+          assert ingestion["source_mode"] == "live"
+          assert ingestion["raw_records"] > 0
+          assert receipt["analyzed_accounts"] == 0
+          assert receipt["agent_run_ids"] == []
+          assert receipt["integration_mode"] == "preview_only"
+          print(
+              f"Validated {ingestion['raw_records']} public records and "
+              f"{receipt['scored_accounts']} scored accounts; no model call or write."
+          )
+          PY
+      - uses: actions/upload-artifact@v7
+        with:
+          name: live-public-signal-receipt-${{ github.run_id }}
+          path: live-signal-smoke.json
+          retention-days: 30

@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Evidence console for Aditya Chouhan's Claude GTM Revenue Agent." />
+    <meta name="theme-color" content="#f5f7fb" />
+    <title>Claude GTM Revenue Agent — Evidence Console</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Fira+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to evidence</a>
+    <header class="site-header">
+      <div class="shell header-inner">
+        <a class="brand" href="#top" aria-label="Claude GTM Revenue Agent home">
+          <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M5 7.5 12 3l7 4.5v9L12 21l-7-4.5v-9Z"/><path d="m8.5 10 3.5 2 3.5-2M12 12v4"/></svg></span>
+          <span><strong>Claude GTM Revenue Agent</strong><small>Evidence console</small></span>
+        </a>
+        <nav class="header-actions" aria-label="Primary navigation">
+          <a class="text-link" href="#architecture">Architecture</a>
+          <a class="text-link" href="#accounts">Signals</a>
+          <a class="button button-dark" href="https://github.com/Aditya-chouhan/claude-gtm-revenue-agent" target="_blank" rel="noreferrer">View source <svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero shell" id="top" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow"><span class="status-dot"></span> Public, inspectable proof</p>
+          <h1 id="hero-title">From market signal to guarded revenue action.</h1>
+          <p class="hero-lede">A production-style GTM system that ingests public FDA enforcement signals, scores accounts with a disclosed policy, and prepares evidence-grounded briefs for human review. Every number below is labelled by what it actually proves.</p>
+          <div class="hero-actions">
+            <button class="button button-primary" id="refresh-live" type="button"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 9A7 7 0 0 1 18 6.5L20 12M4 12l2 5.5A7 7 0 0 0 17.9 15"/></svg>Verify with openFDA now</button>
+            <a class="button button-secondary" href="#evidence-ledger">Inspect evidence</a>
+          </div>
+          <p class="refresh-note" id="refresh-note" role="status" aria-live="polite">Loaded from the committed real-data fixture. Browser refresh is read-only and is not persisted.</p>
+        </div>
+        <aside class="boundary-card" aria-label="Claim boundary">
+          <div class="boundary-heading"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="M12 3 5 6v5c0 4.6 2.8 8.1 7 10 4.2-1.9 7-5.4 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg><span>Claim boundary</span></div>
+          <dl class="boundary-list">
+            <div><dt>Public-source records</dt><dd class="real-label">Real</dd></div>
+            <div><dt>Deterministic scoring</dt><dd class="derived-label">Derived</dd></div>
+            <div><dt>Displayed agent brief</dt><dd class="simulated-label">Mock</dd></div>
+            <div><dt>Claude API calls</dt><dd>0 evidenced</dd></div>
+            <div><dt>CRM / Clay writes</dt><dd>0</dd></div>
+            <div><dt>Pipeline or revenue</dt><dd>Not claimed</dd></div>
+          </dl>
+        </aside>
+      </section>
+
+      <section class="shell section" id="evidence-ledger" aria-labelledby="ledger-title">
+        <div class="section-heading"><div><p class="eyebrow">Auditable run receipt</p><h2 id="ledger-title">Evidence ledger</h2></div><p id="receipt-date">Live ingestion run: loading…</p></div>
+        <div class="metric-grid">
+          <article class="metric-card"><div class="metric-top"><span>Raw records received</span><span class="pill pill-real">Real</span></div><strong id="raw-records">—</strong><p>Returned by the public openFDA endpoint.</p></article>
+          <article class="metric-card"><div class="metric-top"><span>Signals persisted</span><span class="pill pill-real">Real</span></div><strong id="signals-persisted">—</strong><p>Passed the fail-closed identity guard.</p></article>
+          <article class="metric-card"><div class="metric-top"><span>Accounts scored</span><span class="pill pill-derived">Derived</span></div><strong id="accounts-scored">—</strong><p>Ranked with the disclosed openfda-v1 policy.</p></article>
+          <article class="metric-card"><div class="metric-top"><span>External writes</span><span class="pill pill-guarded">Guarded</span></div><strong>0</strong><p>Salesforce, HubSpot, and Clay remain preview-only.</p></article>
+        </div>
+      </section>
+
+      <section class="architecture-band" id="architecture" aria-labelledby="architecture-title">
+        <div class="shell section">
+          <div class="section-heading light-heading"><div><p class="eyebrow">System design</p><h2 id="architecture-title">Production controls around the model</h2></div><p>The LLM interprets evidence. It does not own truth, scoring, or delivery.</p></div>
+          <div class="flow" aria-label="System flow from openFDA to human review">
+            <article class="flow-node active"><span class="node-index">01</span><strong>Public signal</strong><small>openFDA API</small></article><span class="flow-arrow" aria-hidden="true">→</span>
+            <article class="flow-node active"><span class="node-index">02</span><strong>Identity + store</strong><small>Postgres / Alembic</small></article><span class="flow-arrow" aria-hidden="true">→</span>
+            <article class="flow-node active"><span class="node-index">03</span><strong>Score</strong><small>Deterministic policy</small></article><span class="flow-arrow" aria-hidden="true">→</span>
+            <article class="flow-node simulated"><span class="node-index">04</span><strong>Claude brief</strong><small>Structured + evaluated</small></article><span class="flow-arrow" aria-hidden="true">→</span>
+            <article class="flow-node guarded"><span class="node-index">05</span><strong>Human review</strong><small>CRM preview only</small></article>
+          </div>
+          <div class="control-grid">
+            <article><svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M7 4v6M4 17h16M17 14v6"/></svg><div><strong>Strict tool schemas</strong><p>Tool inputs and final outputs are validated before persistence.</p></div></article>
+            <article><svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="M12 3v18M7 7.5C7 5.6 9.2 4 12 4s5 1.6 5 3.5S14.8 11 12 11s-5 1.6-5 3.5S9.2 18 12 18s5-1.6 5-3.5"/></svg><div><strong>Cost budget</strong><p>Tokens, latency, and estimated spend are stored per run.</p></div></article>
+            <article><svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z"/><path d="M12 7v5l3 2"/></svg><div><strong>Retries + limits</strong><p>429 and transient failures use bounded retry and backoff.</p></div></article>
+            <article><svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="m5 12 4 4L19 6"/><path d="M4 20h16"/></svg><div><strong>Evaluation gates</strong><p>Citations, score consistency, and fabricated contacts are checked.</p></div></article>
+          </div>
+        </div>
+      </section>
+
+      <section class="shell section" id="accounts" aria-labelledby="accounts-title">
+        <div class="section-heading"><div><p class="eyebrow">Real public fixture · deterministic output</p><h2 id="accounts-title">Account signal review</h2></div><div class="legend" aria-label="Score legend"><span><i class="legend-high"></i> 70+ priority</span><span><i class="legend-watch"></i> 50–69 watch</span></div></div>
+        <div class="review-layout">
+          <div class="table-card">
+            <div class="table-toolbar"><label for="account-search">Filter accounts</label><div class="search-wrap"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7"/><path d="m16 16 4 4"/></svg><input id="account-search" type="search" placeholder="Company, classification, or state" /></div></div>
+            <div class="table-scroll" tabindex="0" aria-label="Scrollable account signal table"><table><thead><tr><th scope="col">Account</th><th scope="col">Score</th><th scope="col">Signals</th><th scope="col">Latest</th><th scope="col">Class</th></tr></thead><tbody id="account-rows"></tbody></table></div>
+            <p class="table-empty" id="table-empty" hidden>No accounts match this filter.</p>
+          </div>
+          <aside class="detail-card" id="account-detail" aria-live="polite">
+            <p class="eyebrow">Selected account</p><h3 id="detail-name">Loading…</h3>
+            <div class="detail-score-row"><div><strong id="detail-score">—</strong><span>/ 100</span></div><span class="pill pill-derived">Deterministic</span></div>
+            <div class="score-track" aria-hidden="true"><span id="detail-score-bar"></span></div><dl class="score-breakdown" id="score-breakdown"></dl>
+            <div class="signal-preview"><span>Latest evidence</span><p id="detail-evidence">—</p><a id="detail-source" href="#" target="_blank" rel="noreferrer">Open source record</a></div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="shell section two-column-section" aria-labelledby="handoff-title">
+        <article class="brief-card">
+          <div class="card-heading"><div><p class="eyebrow">Structured output example</p><h2 id="handoff-title">Agent brief</h2></div><span class="pill pill-mock">Mock · not Claude</span></div>
+          <div class="brief-body"><div><span class="field-label">Qualification</span><strong id="brief-qualification">—</strong></div><div><span class="field-label">Human-review role</span><strong id="brief-role">—</strong></div><div class="full-field"><span class="field-label">Suggested angle</span><p id="brief-angle">—</p></div><div class="full-field warning-field"><span class="field-label">Why this is safe to inspect</span><p>The committed example came from deterministic mock mode: no Claude call, no fabricated contact, and no message sent.</p></div></div>
+        </article>
+        <article class="integration-card">
+          <div class="card-heading"><div><p class="eyebrow">Activation boundary</p><h2>Integration preview</h2></div><span class="pill pill-guarded">Writes off</span></div>
+          <div class="provider-tabs" role="tablist" aria-label="Integration providers"><button class="provider-tab active" type="button" role="tab" aria-selected="true" data-provider="salesforce">Salesforce</button><button class="provider-tab" type="button" role="tab" aria-selected="false" data-provider="hubspot">HubSpot</button><button class="provider-tab" type="button" role="tab" aria-selected="false" data-provider="clay">Clay</button></div>
+          <pre id="integration-json" tabindex="0" aria-label="Preview integration payload"></pre><p class="integration-note">Payload mapping is implemented. Delivery requires explicit live switches and private credentials that are not committed.</p>
+        </article>
+      </section>
+
+      <section class="shell section proof-section" aria-labelledby="proof-title">
+        <div class="section-heading"><div><p class="eyebrow">Repository proof</p><h2 id="proof-title">What a reviewer can verify</h2></div></div>
+        <div class="proof-grid">
+          <a href="https://github.com/Aditya-chouhan/claude-gtm-revenue-agent/actions" target="_blank" rel="noreferrer"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="M8 5v14l11-7L8 5Z"/></svg><div><strong>Automated verification</strong><span>Tests, migrations, type checks, and container build</span></div></a>
+          <a href="https://github.com/Aditya-chouhan/claude-gtm-revenue-agent/blob/main/docs/EVALUATION.md" target="_blank" rel="noreferrer"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="M4 5h16v14H4z"/><path d="m8 12 2 2 5-5"/></svg><div><strong>Evaluation design</strong><span>Grounding, schema, consistency, and failure cases</span></div></a>
+          <a href="https://github.com/Aditya-chouhan/claude-gtm-revenue-agent/blob/main/docs/ARCHITECTURE.md" target="_blank" rel="noreferrer"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="M12 3v6M6 15v6M18 15v6M6 15h12M6 15v-3h12v3"/></svg><div><strong>Architecture decisions</strong><span>Data boundaries, failure behavior, and tradeoffs</span></div></a>
+          <a href="https://github.com/Aditya-chouhan/claude-gtm-revenue-agent/tree/main/n8n" target="_blank" rel="noreferrer"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><circle cx="6" cy="12" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="18" cy="18" r="2"/><path d="m8 11 8-4M8 13l8 4"/></svg><div><strong>Workflow handoff</strong><span>Importable n8n scheduling and failure branch</span></div></a>
+        </div>
+      </section>
+    </main>
+
+    <footer><div class="shell footer-inner"><div><strong>Built by Aditya Chouhan</strong><p>GTM engineering through auditable systems, not invented outcomes.</p></div><div class="footer-links"><a href="https://aditya-chouhan.github.io/">Portfolio</a><a href="https://github.com/Aditya-chouhan">GitHub</a><a href="https://www.linkedin.com/in/aditya-chouhan-gtm/">LinkedIn</a></div></div></footer>
+    <noscript>This evidence console needs JavaScript to load the committed JSON artifacts.</noscript>
+    <script src="app.js" defer></script>
+  </body>
+</html>

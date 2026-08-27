@@ -1,0 +1,43 @@
+name: Deploy evidence console
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "demo/**"
+      - "data/real/**"
+      - "data/simulated/sample_account_brief.json"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Stage evidence console
+        run: |
+          mkdir -p _site/data
+          cp -R demo/. _site/
+          cp data/real/openfda_snapshot.json _site/data/openfda_snapshot.json
+          cp data/real/live_ingestion_receipt_2026-08-27.json _site/data/live_ingestion_receipt.json
+          cp data/simulated/sample_account_brief.json _site/data/sample_account_brief.json
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
