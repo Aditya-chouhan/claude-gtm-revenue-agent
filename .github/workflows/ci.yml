@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: revenue_agent_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d revenue_agent_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      APP_ENV: test
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/revenue_agent_test
+      AUTO_CREATE_SCHEMA: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: python -m pip install -e '.[dev]'
+      - name: Lint
+        run: ruff check .
+      - name: Type check
+        run: mypy src
+      - name: Test
+        run: pytest --cov=src/revenue_agent --cov-fail-under=80
+      - name: Migrate Postgres
+        run: alembic upgrade head
+      - name: Check migration is current
+        run: alembic check
+      - name: Build container
+        run: docker build -t claude-gtm-revenue-agent:test .

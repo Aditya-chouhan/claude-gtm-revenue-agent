@@ -1,0 +1,50 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: revenue_agent
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d revenue_agent"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  api:
+    build: .
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/revenue_agent
+      AUTO_CREATE_SCHEMA: "false"
+      WORKFLOW_API_KEY: ${WORKFLOW_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-sonnet-5}
+      LIVE_INTEGRATIONS_ENABLED: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready')"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    profiles: ["observability"]
+    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "9090:9090"
+
+volumes:
+  postgres-data:

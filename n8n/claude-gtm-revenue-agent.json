@@ -1,0 +1,117 @@
+{
+  "id": "claudeGtmRevenueAgent01",
+  "name": "Claude GTM Revenue Agent — Daily Signal Run",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "b1000000-0000-4000-8000-000000000001",
+      "name": "Manual Run",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [-260, 120]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {"field": "days", "triggerAtHour": 7, "triggerAtMinute": 0}
+          ]
+        }
+      },
+      "id": "b1000000-0000-4000-8000-000000000002",
+      "name": "Daily 07:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-260, 280]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.REVENUE_AGENT_URL || 'http://api:8000') + '/v1/pipeline/run' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "content-type", "value": "application/json"},
+            {"name": "x-request-id", "value": "={{ $execution.id }}"},
+            {"name": "x-api-key", "value": "={{ $env.REVENUE_AGENT_API_KEY || '' }}"}
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\"limit\":100,\"source_mode\":\"live\",\"agent_mode\":\"live\",\"analyze_top\":5}",
+        "options": {"timeout": 120000}
+      },
+      "id": "b1000000-0000-4000-8000-000000000003",
+      "name": "Run Revenue Agent Pipeline",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [0, 220],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "alwaysOutputData": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "url": "={{ ($env.REVENUE_AGENT_URL || 'http://api:8000') + '/v1/accounts?min_score=60' }}",
+        "options": {"timeout": 30000}
+      },
+      "id": "b1000000-0000-4000-8000-000000000004",
+      "name": "Read Ranked Accounts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 120],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "jsCode": "const accounts = $input.first().json;\nif (!Array.isArray(accounts)) throw new Error('Expected account list from FastAPI');\nreturn [{ json: {\n  status: 'human_review_required',\n  qualified_accounts: accounts.length,\n  top_account_ids: accounts.slice(0, 10).map(a => a.id),\n  generated_at: new Date().toISOString(),\n  activation: 'none',\n  notice: 'This workflow does not send outreach or write to a CRM. Use the API preview endpoints for field mapping.'\n}}];"
+      },
+      "id": "b1000000-0000-4000-8000-000000000005",
+      "name": "Build Orchestration Receipt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [520, 120]
+    },
+    {
+      "parameters": {
+        "jsCode": "const err = $input.first().json;\nreturn [{ json: {\n  alert: true,\n  severity: 'FAIL',\n  workflow: 'Claude GTM Revenue Agent — Daily Signal Run',\n  message: 'Pipeline failed after retries. No account queue was refreshed.',\n  detail: (err && (err.error || err.message)) || 'unknown error',\n  generated_at: new Date().toISOString(),\n  action: 'Treat the prior queue as stale and inspect the FastAPI logs.'\n}}];"
+      },
+      "id": "b1000000-0000-4000-8000-000000000006",
+      "name": "Build Failure Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [260, 340]
+    }
+  ],
+  "connections": {
+    "Manual Run": {
+      "main": [[{"node": "Run Revenue Agent Pipeline", "type": "main", "index": 0}]]
+    },
+    "Daily 07:00": {
+      "main": [[{"node": "Run Revenue Agent Pipeline", "type": "main", "index": 0}]]
+    },
+    "Run Revenue Agent Pipeline": {
+      "main": [
+        [{"node": "Read Ranked Accounts", "type": "main", "index": 0}],
+        [{"node": "Build Failure Alert", "type": "main", "index": 0}]
+      ]
+    },
+    "Read Ranked Accounts": {
+      "main": [[{"node": "Build Orchestration Receipt", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all"
+  },
+  "pinData": {},
+  "versionId": "v1-2026-08-27"
+}

@@ -1,0 +1,57 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "claude-gtm-revenue-agent"
+version = "0.1.0"
+description = "A production-style, evidence-grounded GTM revenue agent powered by Claude."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Aditya Chouhan" }]
+dependencies = [
+  "alembic>=1.16,<2",
+  "anthropic>=0.78,<2",
+  "fastapi>=0.116,<1",
+  "httpx>=0.28,<1",
+  "prometheus-client>=0.22,<1",
+  "psycopg[binary]>=3.2,<4",
+  "pydantic>=2.11,<3",
+  "pydantic-settings>=2.10,<3",
+  "python-json-logger>=3.3,<5",
+  "sqlalchemy>=2.0,<3",
+  "tenacity>=9.1,<10",
+  "uvicorn[standard]>=0.35,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "mypy>=1.17,<2",
+  "pytest>=8.4,<10",
+  "pytest-cov>=6.2,<8",
+  "ruff>=0.12,<1",
+]
+
+[project.scripts]
+revenue-agent = "revenue_agent.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/revenue_agent"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.mypy]
+python_version = "3.11"
+plugins = ["pydantic.mypy"]
+strict = true
+exclude = ["alembic"]

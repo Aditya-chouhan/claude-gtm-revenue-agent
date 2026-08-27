@@ -1,0 +1,30 @@
+{
+  "data_classification": "simulated_agent_output_receipt",
+  "run_date": "2026-08-27",
+  "input": {
+    "source_mode": "fixture",
+    "fixture_classification": "real_public_data",
+    "raw_records": 11,
+    "accounts": 5
+  },
+  "agent": {
+    "mode": "mock",
+    "model": "deterministic-mock-v1",
+    "accounts_analyzed": 5,
+    "claude_api_called": false,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "estimated_cost_usd": 0.0
+  },
+  "evaluation": {
+    "cases": 5,
+    "passed": 5,
+    "pass_rate": 1.0,
+    "schema_validity": 1.0,
+    "citation_validity": 1.0,
+    "observation_coverage": 1.0,
+    "no_fabricated_contact": 1.0,
+    "score_consistency": 1.0
+  },
+  "claim_boundary": "This proves offline orchestration and deterministic checks. It is not a Claude-quality, campaign, pipeline, or revenue result."
+}
