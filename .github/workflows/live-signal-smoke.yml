@@ -6,7 +6,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+  actions: write
 
 jobs:
   verify-openfda-path:
@@ -49,3 +50,64 @@ jobs:
           name: live-public-signal-receipt-${{ github.run_id }}
           path: live-signal-smoke.json
           retention-days: 30
+      - name: Reshape receipt into the repo's public evidence schema
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          raw = json.loads(Path("live-signal-smoke.json").read_text())
+          ingestion = raw["ingestion"]
+
+          skip_reasons = ingestion["skip_reasons"]
+          if not skip_reasons:
+              skip_reason = "No records were skipped."
+          else:
+              parts = [f"{count} record(s) skipped: {reason}." for reason, count in skip_reasons.items()]
+              skip_reason = " ".join(parts)
+
+          receipt = {
+              "data_classification": "real_public_live_run_receipt",
+              "run_at": ingestion["fetched_at"],
+              "source": ingestion["source_url"],
+              "source_mode": ingestion["source_mode"],
+              "raw_records_received": ingestion["raw_records"],
+              "signals_inserted": ingestion["inserted_signals"],
+              "signals_updated": ingestion["updated_signals"],
+              "records_skipped": ingestion["skipped_records"],
+              "skip_reason": skip_reason,
+              "accounts_touched": ingestion["accounts_touched"],
+              "scored_accounts_in_store": raw["scored_accounts"],
+              "agent_mode": "none",
+              "accounts_analyzed": raw["analyzed_accounts"],
+              "integration_mode": raw["integration_mode"],
+              "claim_boundary": (
+                  "This receipt establishes live public-source ingestion only. No Claude "
+                  "call, outreach, CRM write, pipeline, meeting, conversion, or revenue "
+                  "outcome occurred. Auto-committed by the weekly Live public-signal smoke "
+                  "test — see .github/workflows/live-signal-smoke.yml."
+              ),
+          }
+          Path("data/real/live_ingestion_receipt_latest.json").write_text(
+              json.dumps(receipt, indent=2) + "\n"
+          )
+          PY
+      - name: Commit the fresh receipt back to the repo
+        id: commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/real/live_ingestion_receipt_latest.json
+          if git diff --staged --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No change in the reshaped receipt; nothing to commit."
+          else
+            git commit -m "Live public-signal smoke test: refresh receipt ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
+            git push
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Redeploy the evidence console with the fresh receipt
+        if: steps.commit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run pages.yml --ref main

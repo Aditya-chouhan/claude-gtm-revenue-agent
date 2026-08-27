@@ -32,7 +32,10 @@ jobs:
           mkdir -p _site/data
           cp -R demo/. _site/
           cp data/real/openfda_snapshot.json _site/data/openfda_snapshot.json
-          cp data/real/live_ingestion_receipt_2026-08-27.json _site/data/live_ingestion_receipt.json
+          # live_ingestion_receipt_latest.json is overwritten and committed by the
+          # weekly Live public-signal smoke test, so the console always shows the
+          # most recent real run rather than a single point-in-time snapshot.
+          cp data/real/live_ingestion_receipt_latest.json _site/data/live_ingestion_receipt.json
           cp data/simulated/sample_account_brief.json _site/data/sample_account_brief.json
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5

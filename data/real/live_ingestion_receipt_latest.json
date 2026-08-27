@@ -1,0 +1,17 @@
+{
+  "data_classification": "real_public_live_run_receipt",
+  "run_at": "2026-08-27T16:03:17.852248Z",
+  "source": "https://api.fda.gov/drug/enforcement.json",
+  "source_mode": "live",
+  "raw_records_received": 25,
+  "signals_inserted": 24,
+  "signals_updated": 0,
+  "records_skipped": 1,
+  "skip_reason": "1 record(s) skipped: missing_recalling_firm_or_recall_number.",
+  "accounts_touched": 10,
+  "scored_accounts_in_store": 10,
+  "agent_mode": "none",
+  "accounts_analyzed": 0,
+  "integration_mode": "preview_only",
+  "claim_boundary": "This receipt establishes live public-source ingestion only. No Claude call, outreach, CRM write, pipeline, meeting, conversion, or revenue outcome occurred. Auto-committed by the weekly Live public-signal smoke test \u2014 see .github/workflows/live-signal-smoke.yml."
+}

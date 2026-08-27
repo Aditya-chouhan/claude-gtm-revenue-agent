@@ -46,7 +46,8 @@ The deterministic layer decides what the source data supports. Claude turns that
 | Artifact | Classification | What it establishes |
 |---|---|---|
 | `data/real/openfda_snapshot.json` | **Real public data** | 11 openFDA enforcement records for 5 recalling firms, fetched 2026-07-16 |
-| `data/real/live_ingestion_receipt_2026-08-27.json` | **Real live-run receipt** | 25 records received, 24 persisted across 10 accounts; 1 record failed the identity guard because `recall_number` was empty |
+| `data/real/live_ingestion_receipt_2026-08-27.json` | **Real live-run receipt** | The first real live run, 2026-08-27: 25 records received, 24 persisted across 10 accounts; 1 record failed the identity guard because `recall_number` was empty. Kept as-is; not refreshed. |
+| `data/real/live_ingestion_receipt_latest.json` | **Real live-run receipt, auto-refreshed weekly** | Overwritten and committed by the scheduled `live-signal-smoke.yml` run below — reflects the most recent real ingestion against openFDA, not a fixed point in time |
 | `source_mode=live` | **Real public data at runtime** | Fresh records returned by openFDA; counts can change |
 | `agent_mode=mock` | **Simulated agent output** | Offline plumbing, schemas, persistence, guards, and deterministic evaluation |
 | `agent_mode=live` | **Real Claude API output** | Only when the operator supplies an API key; usage and estimated cost are stored |
@@ -62,7 +63,9 @@ The recruiter-facing [evidence console](https://aditya-chouhan.github.io/claude-
 
 The **Verify with openFDA now** control performs a read-only browser request to the public API and recomputes account scores locally. That result is not persisted and is never described as a backend deployment, Claude execution, CRM sync, or revenue outcome.
 
-GitHub Actions also runs a weekly live public-signal smoke test with `agent_mode=none`, validates that records were received, and publishes the JSON receipt as a workflow artifact. No secret or paid API is required.
+GitHub Actions also runs a weekly live public-signal smoke test (`.github/workflows/live-signal-smoke.yml`) with `agent_mode=none`. It validates that records were actually received, publishes the JSON receipt as a 30-day workflow artifact, **and commits the reshaped receipt back to `data/real/live_ingestion_receipt_latest.json`** — so the repository itself, not just an ephemeral Actions log, shows an ongoing trail of real scheduled runs. Each fresh commit triggers an immediate redeploy of the evidence console below, so the console's numbers track the most recent real run rather than a single snapshot. No secret or paid API is required; `workflow_dispatch` lets anyone re-run it on demand.
+
+Adding `ANTHROPIC_API_KEY` as a repository secret and pointing this same workflow at `--agent-mode live` (currently `none` by design, since this runs unattended and unreviewed on a schedule) would turn it into a genuinely live, scheduled, secret-managed Claude execution — the natural next step, deliberately not taken without the operator's key and explicit go-ahead on the recurring spend.
 
 Local console preview:
 
