@@ -1,5 +1,12 @@
 # Claude GTM Revenue Agent
 
+> **Current revenue-agent flagship.** The earlier
+> [`account-brief-demo`](https://github.com/Aditya-chouhan/account-brief-demo)
+> established a compact citation-first brief workflow using GitHub and Hacker
+> News. Its collectors remain in that repository because this system currently
+> implements an openFDA-specific ingestion contract; they are not presented
+> here as migrated code.
+
 **A production-style revenue agent that turns real public market signals into evidence-grounded, human-reviewable GTM actions.**
 
 This repository closes a specific gap in my GTM engineering portfolio: it calls a real LLM API, uses strict tool schemas and structured outputs, persists an audit trail, exposes an operational service, and defines guarded boundaries to the systems a revenue team actually uses.
