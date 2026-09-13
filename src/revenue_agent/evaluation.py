@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import uuid
+from datetime import date, timedelta
 from typing import Any, Literal
 
 from sqlalchemy import select
@@ -18,6 +19,137 @@ from revenue_agent.schemas import (
 
 EMAIL = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
 PHONE = re.compile(r"(?<!\d)(?:\+?\d[\d .()-]{7,}\d)(?!\d)")
+WORD = re.compile(r"[a-z0-9]+")
+NUMBER = re.compile(
+    r"(?<![a-z0-9])[$€£]?\d[\d,]*(?:\.\d+)?%?(?:\s*(?:thousand|million|billion|[kmb]))?",
+    re.IGNORECASE,
+)
+RECENCY_WORDS = {"current", "currently", "latest", "now", "recent", "recently", "today"}
+NEGATION_WORDS = {"no", "not", "never", "neither", "without"}
+FRAMING_WORDS = {
+    "a",
+    "according",
+    "action",
+    "an",
+    "and",
+    "as",
+    "at",
+    "by",
+    "company",
+    "evidence",
+    "enforcement",
+    "fda",
+    "firm",
+    "for",
+    "from",
+    "in",
+    "is",
+    "of",
+    "on",
+    "openfda",
+    "public",
+    "recall",
+    "record",
+    "report",
+    "reported",
+    "reports",
+    "source",
+    "states",
+    "that",
+    "the",
+    "this",
+    "to",
+    "was",
+    "were",
+    "with",
+}
+
+
+def _tokens(value: str) -> set[str]:
+    return set(WORD.findall(value.casefold()))
+
+
+def _numbers(value: str) -> set[str]:
+    return {
+        re.sub(r"[\s,$€£]", "", item.casefold())
+        for item in NUMBER.findall(value)
+    }
+
+
+def _signal_corpus(account: Account, signal: Signal) -> str:
+    fields = [
+        account.name,
+        signal.source,
+        signal.external_id,
+        signal.signal_type,
+        signal.classification or "",
+        signal.status or "",
+        signal.occurred_on.isoformat() if signal.occurred_on else "",
+        signal.title,
+        signal.evidence,
+        str(signal.source_url),
+        str(signal.raw_payload),
+    ]
+    return " ".join(fields)
+
+
+def observation_support_failures(
+    account: Account,
+    signal: Signal,
+    fact: str,
+    *,
+    known_account_names: set[str] | None = None,
+    as_of: date | None = None,
+) -> list[str]:
+    """Return deterministic reasons a cited fact is not supported by its evidence.
+
+    This deliberately enforces an extractive observation contract. It does not claim
+    to solve semantic entailment: if Claude wants to infer beyond the stored source,
+    that statement belongs in `hypotheses`, not in an evidence-backed observation.
+    """
+    failures: list[str] = []
+    corpus = _signal_corpus(account, signal)
+    claim_tokens = _tokens(fact)
+    corpus_tokens = _tokens(corpus)
+
+    unsupported_numbers = sorted(_numbers(fact) - _numbers(corpus))
+    if unsupported_numbers:
+        failures.append(f"unsupported numeric claim(s): {', '.join(unsupported_numbers)}")
+
+    unsupported_negation = sorted((claim_tokens & NEGATION_WORDS) - corpus_tokens)
+    if unsupported_negation:
+        failures.append(
+            f"claim introduces unsupported negation: {', '.join(unsupported_negation)}"
+        )
+
+    today = as_of or date.today()
+    recency = claim_tokens & RECENCY_WORDS
+    if "today" in recency and signal.occurred_on != today:
+        failures.append("claim says today but the stored signal has a different or missing date")
+    elif recency:
+        terminal = (signal.status or "").casefold() in {"closed", "completed", "terminated"}
+        stale = signal.occurred_on is None or not (
+            today - timedelta(days=90) <= signal.occurred_on <= today
+        )
+        if terminal or stale:
+            failures.append("claim presents stale or terminal evidence as current")
+
+    current_name = account.name.casefold()
+    for name in known_account_names or set():
+        folded = name.casefold()
+        if folded != current_name and len(folded) >= 4 and folded in fact.casefold():
+            failures.append(f"claim references another stored account: {name}")
+
+    unsupported_tokens = sorted(
+        token
+        for token in claim_tokens - corpus_tokens - FRAMING_WORDS - RECENCY_WORDS
+        if len(token) > 1 and not token.isdigit()
+    )
+    if unsupported_tokens:
+        failures.append(
+            "unsupported evidence token(s): " + ", ".join(unsupported_tokens[:12])
+        )
+    return failures
 
 
 def evaluate_run(session: Session, run: AgentRun) -> EvaluationCaseResult:
@@ -31,6 +163,7 @@ def evaluate_run(session: Session, run: AgentRun) -> EvaluationCaseResult:
             passed=False,
             schema_valid=False,
             citation_validity=0,
+            semantic_support=0,
             observation_coverage=0,
             no_fabricated_contact=False,
             score_consistent=False,
@@ -43,12 +176,29 @@ def evaluate_run(session: Session, run: AgentRun) -> EvaluationCaseResult:
         for item in session.scalars(select(Signal).where(Signal.account_id == run.account_id))
     }
     valid_citations = 0
-    for observation in brief.observations:
+    semantically_supported = 0
+    known_account_names = set(session.scalars(select(Account.name)))
+    for index, observation in enumerate(brief.observations, start=1):
         signal = signals.get(observation.signal_id)
         if signal and signal.source_url == str(observation.source_url):
             valid_citations += 1
+            semantic_failures = observation_support_failures(
+                account,
+                signal,
+                observation.fact,
+                known_account_names=known_account_names,
+            )
+            if semantic_failures:
+                failures.extend(
+                    f"observation {index}: {failure}" for failure in semantic_failures
+                )
+            else:
+                semantically_supported += 1
     citation_validity = valid_citations / len(brief.observations) if brief.observations else 0.0
-    observation_coverage = citation_validity
+    semantic_support = (
+        semantically_supported / len(brief.observations) if brief.observations else 0.0
+    )
+    observation_coverage = semantic_support
     if citation_validity < 1:
         failures.append("one or more observations did not map to stored source evidence")
 
@@ -71,6 +221,7 @@ def evaluate_run(session: Session, run: AgentRun) -> EvaluationCaseResult:
         passed=not failures,
         schema_valid=schema_valid,
         citation_validity=round(citation_validity, 4),
+        semantic_support=round(semantic_support, 4),
         observation_coverage=round(observation_coverage, 4),
         no_fabricated_contact=no_fabricated_contact,
         score_consistent=score_consistent,
@@ -126,8 +277,10 @@ def _valid_brief_dict(account: Account, signal: Signal) -> dict[str, Any]:
 AdversarialCase = tuple[str, str, str, dict[str, Any]]
 
 
-def _adversarial_cases(account: Account, signal: Signal) -> list[AdversarialCase]:
-    """Seven ways a brief can lie, and the exact failure `evaluate_run` must produce for each.
+def _adversarial_cases(
+    account: Account, signal: Signal, other_account_name: str
+) -> list[AdversarialCase]:
+    """Twelve ways a brief can lie, and the failure the evaluator must produce for each.
 
     None of these dicts are produced by `MockRevenueAgent` or `ClaudeRevenueAgent` — they are
     built here specifically to be rejected. A case the evaluator does not catch is a real gap
@@ -155,6 +308,51 @@ def _adversarial_cases(account: Account, signal: Signal) -> list[AdversarialCase
     unlabeled_hypothesis = {
         **base,
         "hypotheses": ["A quality leader will definitely buy this quarter."],
+    }
+    unsupported_fact = {
+        **base,
+        "observations": [
+            {
+                **_valid_observation(signal),
+                "fact": "The company raised $50 million in new funding.",
+            }
+        ],
+    }
+    negated_evidence = {
+        **base,
+        "observations": [
+            {
+                **_valid_observation(signal),
+                "fact": f"The source states the firm did not report {signal.evidence}",
+            }
+        ],
+    }
+    stale_as_current = {
+        **base,
+        "observations": [
+            {
+                **_valid_observation(signal),
+                "fact": f"Today the source reports {signal.evidence}",
+            }
+        ],
+    }
+    wrong_entity = {
+        **base,
+        "observations": [
+            {
+                **_valid_observation(signal),
+                "fact": f"{other_account_name} is the firm described by {signal.evidence}",
+            }
+        ],
+    }
+    invented_person = {
+        **base,
+        "observations": [
+            {
+                **_valid_observation(signal),
+                "fact": f"Jane Doe, VP Quality, confirmed {signal.evidence}",
+            }
+        ],
     }
 
     return [
@@ -200,6 +398,36 @@ def _adversarial_cases(account: Account, signal: Signal) -> list[AdversarialCase
             "hypothesis not explicitly labelled",
             unlabeled_hypothesis,
         ),
+        (
+            "unsupported_fact_valid_citation",
+            "A fabricated funding claim is attached to a real signal ID and URL",
+            "unsupported numeric claim",
+            unsupported_fact,
+        ),
+        (
+            "negated_evidence",
+            "A valid citation is used while reversing the source's meaning",
+            "unsupported negation",
+            negated_evidence,
+        ),
+        (
+            "stale_as_current",
+            "A dated signal is described as happening today",
+            "claim says today",
+            stale_as_current,
+        ),
+        (
+            "wrong_entity_valid_citation",
+            "A valid citation is attributed to a different stored account",
+            "references another stored account",
+            wrong_entity,
+        ),
+        (
+            "invented_person",
+            "An invented named person is attached to otherwise valid evidence",
+            "unsupported evidence token",
+            invented_person,
+        ),
     ]
 
 
@@ -209,7 +437,7 @@ def run_adversarial_evaluation(session: Session, account: Account) -> Adversaria
     `evaluate_completed_runs("mock")` reports 1.0 on every metric because
     `MockRevenueAgent` builds its output by copying the same stored account/signal
     fields the evaluator checks against — that comparison is circular and cannot fail
-    by construction. This function instead evaluates seven deliberately corrupted
+    by construction. This function instead evaluates deliberately corrupted
     briefs that no agent in this repo produces. `caught=False` on any case is a real
     defect in `evaluate_run`, not noise.
     """
@@ -221,8 +449,13 @@ def run_adversarial_evaluation(session: Session, account: Account) -> Adversaria
             f"account {account.id} has no stored signal to build adversarial cases from"
         )
 
+    other_account_name = session.scalar(
+        select(Account.name).where(Account.id != account.id).order_by(Account.name)
+    ) or "Unrelated Holdings"
     results: list[AdversarialCaseResult] = []
-    for label, corruption, expected_substring, brief_dict in _adversarial_cases(account, signal):
+    for label, corruption, expected_substring, brief_dict in _adversarial_cases(
+        account, signal, other_account_name
+    ):
         run = AgentRun(
             id=str(uuid.uuid4()),
             account_id=account.id,
@@ -249,7 +482,7 @@ def run_adversarial_evaluation(session: Session, account: Account) -> Adversaria
 
     caught_count = sum(result.caught for result in results)
     return AdversarialReport(
-        dataset="adversarial_fixtures_v1",
+        dataset="adversarial_fixtures_v2",
         cases=len(results),
         caught=caught_count,
         catch_rate=round(caught_count / len(results), 4) if results else 0.0,

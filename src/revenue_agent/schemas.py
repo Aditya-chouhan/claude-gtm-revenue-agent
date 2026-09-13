@@ -142,6 +142,7 @@ class EvaluationCaseResult(BaseModel):
     passed: bool
     schema_valid: bool
     citation_validity: float
+    semantic_support: float
     observation_coverage: float
     no_fabricated_contact: bool
     score_consistent: bool

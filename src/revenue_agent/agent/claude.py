@@ -6,6 +6,7 @@ import random
 import threading
 import time
 from collections import deque
+from dataclasses import dataclass, field
 from typing import Any, cast
 
 from anthropic import Anthropic, transform_schema
@@ -14,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from revenue_agent.config import Settings
 from revenue_agent.costs import assert_budget_available, estimate_cost_usd
+from revenue_agent.evaluation import observation_support_failures
 from revenue_agent.models import Account, AgentRun, Signal
 from revenue_agent.observability import AGENT_CALLS, AGENT_COST
 from revenue_agent.schemas import AccountBrief
@@ -46,6 +48,19 @@ class GroundingRejected(ValueError):
     """
 
 
+@dataclass
+class AgentAttemptLedger:
+    """Mutable accounting that survives parse, tool, and grounding failures."""
+
+    input_tokens: int = 0
+    output_tokens: int = 0
+    trace: list[dict[str, Any]] = field(default_factory=list)
+
+    def record_response(self, response: Any) -> None:
+        self.input_tokens += _usage(response, "input_tokens")
+        self.output_tokens += _usage(response, "output_tokens")
+
+
 def categorize_agent_error(exc: Exception) -> str:
     """Bucket an `analyze()` failure into one of three operationally distinct categories.
 
@@ -65,6 +80,8 @@ hypotheses. Never invent a person, email, phone number, customer relationship, r
 impact, or campaign result. A deterministic score measures buying-trigger intensity only;
 it is not a quality verdict. Recommend human review before any CRM or outreach action.
 Every observation must cite exactly one signal_id and its matching source_url.
+Every observation must be extractive: use only factual words, numbers, entities,
+dates and polarity present in that stored signal. Put every inference in hypotheses.
 """
 
 
@@ -148,22 +165,13 @@ class ClaudeRevenueAgent:
         )
         session.add(run)
         session.flush()
+        ledger = AgentAttemptLedger()
         try:
-            output, trace, input_tokens, output_tokens = self._run_loop(session, account)
-            self._validate_grounding(session, account, output)
+            output = self._run_loop(session, account, ledger)
             run.output = output.model_dump(mode="json")
-            run.tool_trace = json.loads(json.dumps(trace, default=str))
-            run.input_tokens = input_tokens
-            run.output_tokens = output_tokens
-            run.estimated_cost_usd = estimate_cost_usd(
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-                input_usd_per_million=self.settings.claude_input_usd_per_million,
-                output_usd_per_million=self.settings.claude_output_usd_per_million,
-            )
+            self._validate_grounding(session, account, output)
             run.status = "completed"
             AGENT_CALLS.labels("live", "completed").inc()
-            AGENT_COST.labels(self.settings.claude_model).inc(run.estimated_cost_usd)
         except Exception as exc:
             run.status = "failed"
             run.error_type = categorize_agent_error(exc)
@@ -180,13 +188,24 @@ class ClaudeRevenueAgent:
                 },
             )
         finally:
+            run.tool_trace = json.loads(json.dumps(ledger.trace, default=str))
+            run.input_tokens = ledger.input_tokens
+            run.output_tokens = ledger.output_tokens
+            run.estimated_cost_usd = estimate_cost_usd(
+                input_tokens=ledger.input_tokens,
+                output_tokens=ledger.output_tokens,
+                input_usd_per_million=self.settings.claude_input_usd_per_million,
+                output_usd_per_million=self.settings.claude_output_usd_per_million,
+            )
+            if run.estimated_cost_usd:
+                AGENT_COST.labels(self.settings.claude_model).inc(run.estimated_cost_usd)
             run.latency_ms = int((time.perf_counter() - started) * 1000)
             session.commit()
         return run
 
     def _run_loop(
-        self, session: Session, account: Account
-    ) -> tuple[AccountBrief, list[dict[str, Any]], int, int]:
+        self, session: Session, account: Account, ledger: AgentAttemptLedger
+    ) -> AccountBrief:
         tools = self._tools()
         output_schema = transform_schema(AccountBrief.model_json_schema())
         messages: list[dict[str, Any]] = [
@@ -198,10 +217,6 @@ class ClaudeRevenueAgent:
                 ),
             }
         ]
-        trace: list[dict[str, Any]] = []
-        input_tokens = 0
-        output_tokens = 0
-
         for iteration in range(5):
             response = self._create_message(
                 model=self.settings.claude_model,
@@ -212,8 +227,7 @@ class ClaudeRevenueAgent:
                 tool_choice={"type": "any"} if iteration == 0 else {"type": "auto"},
                 output_config={"format": {"type": "json_schema", "schema": output_schema}},
             )
-            input_tokens += _usage(response, "input_tokens")
-            output_tokens += _usage(response, "output_tokens")
+            ledger.record_response(response)
             blocks = list(response.content)
             tool_blocks = [block for block in blocks if _block_value(block, "type") == "tool_use"]
             if not tool_blocks:
@@ -227,7 +241,7 @@ class ClaudeRevenueAgent:
                     raise RuntimeError(
                         f"Claude returned no final JSON; stop_reason={response.stop_reason}"
                     )
-                return AccountBrief.model_validate_json(raw), trace, input_tokens, output_tokens
+                return AccountBrief.model_validate_json(raw)
 
             messages.append(
                 {"role": "assistant", "content": [_serialize_block(block) for block in blocks]}
@@ -237,7 +251,7 @@ class ClaudeRevenueAgent:
                 name = str(_block_value(block, "name"))
                 arguments = dict(_block_value(block, "input", {}))
                 result = self._execute_tool(session, account, name, arguments)
-                trace.append({"tool": name, "input": arguments, "result": result})
+                ledger.trace.append({"tool": name, "input": arguments, "result": result})
                 results.append(
                     {
                         "type": "tool_result",
@@ -388,11 +402,23 @@ class ClaudeRevenueAgent:
             item.id: item
             for item in session.scalars(select(Signal).where(Signal.account_id == account.id))
         }
+        known_account_names = set(session.scalars(select(Account.name)))
         for observation in brief.observations:
             signal = signals.get(observation.signal_id)
             if signal is None or str(observation.source_url) != signal.source_url:
                 raise GroundingRejected(
                     "Claude returned an observation with invalid evidence provenance"
+                )
+            semantic_failures = observation_support_failures(
+                account,
+                signal,
+                observation.fact,
+                known_account_names=known_account_names,
+            )
+            if semantic_failures:
+                raise GroundingRejected(
+                    "Claude returned an observation unsupported by its cited evidence: "
+                    + "; ".join(semantic_failures)
                 )
         if "@" in brief.role_target:
             raise GroundingRejected("role_target must be a role, not an email address")

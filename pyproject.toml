@@ -55,3 +55,7 @@ python_version = "3.11"
 plugins = ["pydantic.mypy"]
 strict = true
 exclude = ["alembic"]
+
+[tool.coverage.run]
+source = ["revenue_agent"]
+relative_files = true

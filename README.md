@@ -32,7 +32,7 @@ Postgres audit store ──► enrich ──► score ──► Claude revenue a
         └──── tokens, cost, latency, trace ◄────┴─ grounding evaluation
 ```
 
-The deterministic layer decides what the source data supports. Claude turns that evidence into a structured account brief; it cannot silently change the score. Every observation must point back to a stored signal ID and its openFDA URL.
+The deterministic layer decides what the source data supports. Claude turns that evidence into a structured account brief; it cannot silently change the score. Every observation must point back to a stored signal ID and its openFDA URL, and the observation's factual meaning must be extractively supported by the cited evidence.
 
 ## What is implemented
 
@@ -41,11 +41,11 @@ The deterministic layer decides what the source data supports. Claude turns that
 - Source-derived enrichment and a disclosed 0–100 trigger score
 - Claude Messages API agent loop with strict tool use and JSON-schema output
 - Retry with exponential backoff, `retry-after` support, process-local rate limiting, and a five-turn safety limit
-- Per-run token usage, configurable cost estimation, latency, tool trace, prompt version, and monthly budget guard
+- Per-attempt token usage, configurable cost estimation, latency, tool trace, prompt version, and monthly budget guard; paid usage survives malformed or grounding-rejected output
 - FastAPI service with health, readiness, OpenAPI, account, pipeline, analysis, integration-preview, and Prometheus endpoints
 - Salesforce, HubSpot, and Clay payload boundaries with fail-closed live-write switches
 - Importable n8n workflow for scheduling the FastAPI pipeline and polling run output
-- Deterministic mock mode, an adversarial evaluation harness (seven deliberately corrupted briefs the grounding checks must reject — the mock mode alone cannot fail by construction, see [Evaluation](docs/EVALUATION.md)), tests, Docker Compose, and GitHub Actions
+- Deterministic mock mode, a 12-case adversarial evaluation harness spanning citation, identity, contact, score, and semantic corruptions (the mock mode alone cannot fail by construction, see [Evaluation](docs/EVALUATION.md)), tests, Docker Compose, and GitHub Actions
 - Public evidence console and scheduled live-source smoke receipt
 
 ## Data and result boundaries
@@ -157,7 +157,9 @@ Set `WORKFLOW_API_KEY` to require an `x-api-key` header on the two cost-bearing 
 
 The Anthropic SDK's implicit retries are disabled so the repository's retry behavior is visible and testable. Retryable connection, timeout, 429, and 5xx failures use provider `retry-after` when available or capped exponential backoff with jitter. A local limiter smooths calls inside one process; Anthropic's organization-level limits remain authoritative.
 
-Each agent run stores input/output tokens and an estimated cost using environment-configured prices. The defaults in `.env.example` were checked against Claude Sonnet 5 **introductory** API pricing on 2026-08-27 and are deliberately configuration—not immutable truth. **That introductory pricing ends 2026-08-31**; from 2026-09-01 the standard rate is $3.00 / $15.00 per MTok, and every `estimated_cost_usd` recorded under the old defaults understates real spend by roughly a third on input and half on output. Update `CLAUDE_INPUT_USD_PER_MILLION` / `CLAUDE_OUTPUT_USD_PER_MILLION` on that date. The budget guard closes new live runs when stored month-to-date estimated cost reaches `CLAUDE_MONTHLY_BUDGET_USD`.
+Each agent attempt stores provider-reported input/output tokens and an estimated cost using environment-configured prices. The defaults in `.env.example` are $2.00 / $10.00 per million input/output tokens, matching [Anthropic's current Claude Sonnet 5 pricing announcement](https://www.anthropic.com/news/claude-sonnet-5) as checked on 2026-09-12. Prices remain configuration rather than immutable truth and should be verified before a live run.
+
+Usage and cost are persisted even when a paid response fails JSON parsing, schema validation, or grounding validation. A transport failure before the provider returns usage remains at zero because there is no provider-reported usage to record. Failed and rejected paid attempts therefore count toward the month-to-date budget, and the budget guard closes new live runs when stored estimated cost reaches `CLAUDE_MONTHLY_BUDGET_USD`.
 
 ## Integration safety
 
@@ -183,10 +185,23 @@ docker compose config --quiet
 DATABASE_URL=sqlite:///./revenue_agent.db AUTO_CREATE_SCHEMA=true \
   .venv/bin/revenue-agent pipeline --source-mode fixture --agent-mode none --analyze-top 0
 DATABASE_URL=sqlite:///./revenue_agent.db AUTO_CREATE_SCHEMA=true \
-  .venv/bin/revenue-agent evaluate --mode adversarial
+  .venv/bin/python scripts/generate_adversarial_report.py \
+  --output evidence/adversarial_report_$(date +%F).json
+
+# Build the review queue. A human must add human_label, reviewer, and notes;
+# the evaluator refuses fewer than 30 attributed labels.
+DATABASE_URL=sqlite:///./human_eval.db AUTO_CREATE_SCHEMA=true \
+  .venv/bin/python scripts/build_human_label_queue.py \
+  --output evaluation/human_label_queue_$(date +%F).jsonl
+
+# After an authorized live Claude run, export a sanitized receipt. This fails
+# closed when no paid live run with provider-reported usage exists.
+DATABASE_URL=sqlite:///./revenue_agent.db \
+  .venv/bin/python scripts/export_live_receipt.py \
+  --output evidence/live_claude_receipt_$(date +%F).json
 ```
 
-Committed, unedited command output for both the test suite and the adversarial evaluation is in [`evidence/`](evidence/README.md) — see it for what each file proves and which environment produced it.
+Committed machine-generated reports for the test suite and adversarial evaluation are in [`evidence/`](evidence/README.md). The human-label queue is deliberately not presented as an evaluation result, and no live Claude receipt is claimed until an authorized call is executed.
 
 See [Architecture](docs/ARCHITECTURE.md), [Evaluation](docs/EVALUATION.md), [Integration contracts](docs/INTEGRATIONS.md), and the [portfolio case study](docs/CASE_STUDY.md).
 

@@ -1,0 +1,119 @@
+{
+  "dataset": "adversarial_fixtures_v2",
+  "cases": 12,
+  "caught": 12,
+  "catch_rate": 1.0,
+  "results": [
+    {
+      "label": "mutated_score",
+      "corruption": "Claude changes the disclosed deterministic score",
+      "expected_failure_substring": "changed the deterministic score",
+      "caught": true,
+      "failures": [
+        "model changed the deterministic score"
+      ]
+    },
+    {
+      "label": "wrong_signal_id",
+      "corruption": "An observation cites a signal_id that does not exist",
+      "expected_failure_substring": "did not map to stored source evidence",
+      "caught": true,
+      "failures": [
+        "one or more observations did not map to stored source evidence"
+      ]
+    },
+    {
+      "label": "wrong_source_url",
+      "corruption": "An observation cites a real signal_id but a fabricated source_url",
+      "expected_failure_substring": "did not map to stored source evidence",
+      "caught": true,
+      "failures": [
+        "one or more observations did not map to stored source evidence"
+      ]
+    },
+    {
+      "label": "account_name_mismatch",
+      "corruption": "The brief names a different company than the one analyzed",
+      "expected_failure_substring": "account name mismatch",
+      "caught": true,
+      "failures": [
+        "account name mismatch"
+      ]
+    },
+    {
+      "label": "fabricated_email",
+      "corruption": "A person-like email address appears in contact-facing text",
+      "expected_failure_substring": "person-like email or phone contact",
+      "caught": true,
+      "failures": [
+        "output contains a person-like email or phone contact"
+      ]
+    },
+    {
+      "label": "fabricated_phone",
+      "corruption": "A phone number appears in contact-facing text",
+      "expected_failure_substring": "person-like email or phone contact",
+      "caught": true,
+      "failures": [
+        "output contains a person-like email or phone contact"
+      ]
+    },
+    {
+      "label": "unlabeled_hypothesis",
+      "corruption": "A hypothesis is stated as fact instead of being explicitly labelled",
+      "expected_failure_substring": "hypothesis not explicitly labelled",
+      "caught": true,
+      "failures": [
+        "hypothesis not explicitly labelled"
+      ]
+    },
+    {
+      "label": "unsupported_fact_valid_citation",
+      "corruption": "A fabricated funding claim is attached to a real signal ID and URL",
+      "expected_failure_substring": "unsupported numeric claim",
+      "caught": true,
+      "failures": [
+        "observation 1: unsupported numeric claim(s): 50million",
+        "observation 1: unsupported evidence token(s): funding, million, new, raised"
+      ]
+    },
+    {
+      "label": "negated_evidence",
+      "corruption": "A valid citation is used while reversing the source's meaning",
+      "expected_failure_substring": "unsupported negation",
+      "caught": true,
+      "failures": [
+        "observation 1: claim introduces unsupported negation: not",
+        "observation 1: unsupported evidence token(s): did, not"
+      ]
+    },
+    {
+      "label": "stale_as_current",
+      "corruption": "A dated signal is described as happening today",
+      "expected_failure_substring": "claim says today",
+      "caught": true,
+      "failures": [
+        "observation 1: claim says today but the stored signal has a different or missing date"
+      ]
+    },
+    {
+      "label": "wrong_entity_valid_citation",
+      "corruption": "A valid citation is attributed to a different stored account",
+      "expected_failure_substring": "references another stored account",
+      "caught": true,
+      "failures": [
+        "observation 1: claim references another stored account: Asclemed USA Inc.",
+        "observation 1: unsupported evidence token(s): asclemed, described, usa"
+      ]
+    },
+    {
+      "label": "invented_person",
+      "corruption": "An invented named person is attached to otherwise valid evidence",
+      "expected_failure_substring": "unsupported evidence token",
+      "caught": true,
+      "failures": [
+        "observation 1: unsupported evidence token(s): confirmed, doe, jane, quality, vp"
+      ]
+    }
+  ]
+}

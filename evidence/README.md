@@ -9,5 +9,10 @@ the artifact itself.
 |---|---|---|
 | `adversarial_report_2026-08-27.json` | `revenue-agent evaluate --mode adversarial` | Seven deliberately corrupted `AccountBrief` payloads fed to `evaluate_run`. Unlike the mock-mode evaluation, this can fail — a `caught: false` on any case is a real defect. |
 | `pytest_2026-08-27.txt` | `pytest --cov=src/revenue_agent --cov-report=term-missing` | Local run against SQLite on Python 3.11. **GitHub Actions is authoritative** (real Postgres, Python 3.12, regenerates every push) — this file is a point-in-time local reproduction, not a substitute for the Actions log. |
+| `adversarial_report_2026-09-12.json` | `scripts/generate_adversarial_report.py` | Twelve structural and semantic corruptions; all 12 were caught. This checks deterministic guard behavior, not live-model quality. |
+| `pytest_2026-09-12.xml` | `pytest --junitxml=...` | Machine-readable local result: 29 passed against SQLite. |
+| `coverage_2026-09-12.xml` | `pytest --cov-report=xml:...` | Machine-readable local line coverage: 85.56%. |
 
-Regenerate either file with the commands above; don't hand-edit the committed copies.
+Regenerate these artifacts with the documented commands; don't hand-edit the committed copies.
+
+The 40-row file under `evaluation/` is an intentionally unlabelled human-review queue, not an evidence result. No human-evaluation report or live Claude inference receipt is committed as of 2026-09-12.

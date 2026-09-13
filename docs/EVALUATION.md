@@ -6,6 +6,7 @@ Every completed stored run is checked for:
 
 - full `AccountBrief` schema validity
 - 100% observation-to-signal ID and source URL validity
+- extractive semantic support for evidence terms, numbers, polarity, recency, and account/entity identity
 - deterministic score consistency
 - exact account identity consistency
 - explicit `Hypothesis` labelling
@@ -29,7 +30,7 @@ DATABASE_URL=sqlite:///./revenue_agent.db AUTO_CREATE_SCHEMA=true \
 
 ## Adversarial evaluation
 
-`evaluate --mode adversarial` feeds `evaluate_run` seven deliberately corrupted `AccountBrief` payloads that no agent in this repo produces — a mutated score, a fabricated `signal_id`, a fabricated `source_url`, a mismatched account name, an email and a phone number in contact-facing text, and an unlabelled speculative claim. Unlike the mock receipt above, this **can** fail: a `caught: false` on any case is a real defect in the grounding checks. The committed `evidence/adversarial_report_2026-08-27.json` is the real, run output — not hand-transcribed.
+The adversarial harness feeds `evaluate_run` 12 deliberately corrupted `AccountBrief` payloads that no agent in this repo produces. Seven cover score, signal ID, source URL, account identity, fabricated contact details, and unlabelled speculation. Five use valid citation IDs and URLs but corrupt the cited meaning: an unsupported fact, negated evidence, stale evidence described as current, a wrong entity, and an invented person. Unlike the mock receipt above, this **can** fail: a `caught: false` on any case is a real defect. The committed `evidence/adversarial_report_2026-09-12.json` is machine-generated output.
 
 Reproduce:
 
@@ -38,21 +39,42 @@ DATABASE_URL=sqlite:///./revenue_agent.db AUTO_CREATE_SCHEMA=true \
   .venv/bin/revenue-agent pipeline --source-mode fixture --agent-mode none --analyze-top 0
 
 DATABASE_URL=sqlite:///./revenue_agent.db AUTO_CREATE_SCHEMA=true \
-  .venv/bin/revenue-agent evaluate --mode adversarial
+  .venv/bin/python scripts/generate_adversarial_report.py \
+  --output evidence/adversarial_report_$(date +%F).json
 ```
 
-The same seven corruption types are also unit-tested directly against `evaluate_run` and against `ClaudeRevenueAgent._validate_grounding` in `tests/test_evaluation_adversarial.py` and `tests/test_agent.py`, so a regression fails CI, not just a manually re-run report.
+The same 12 corruption types are unit-tested against `evaluate_run`, with agent-boundary coverage in `tests/test_agent.py`, so a regression fails CI rather than only a manually re-run report.
+
+## Human-labelled evaluation
+
+`evaluation/human_label_queue_2026-09-12.jsonl` contains 40 claim/evidence pairs derived from ten real fixture signals. Labels, reviewer names, and notes are null by design. This prevents generated expectations from being misrepresented as independent human judgment.
+
+A reviewer should fill `human_label` with `supported`, `unsupported`, or `ambiguous`, add a non-empty `reviewer`, and optionally explain the decision in `notes`. The evaluator refuses fewer than 30 reviewer-attributed rows. Ambiguous rows are reported but excluded from binary precision, recall, and F1.
+
+```bash
+DATABASE_URL=sqlite:///./human_eval.db AUTO_CREATE_SCHEMA=true \
+  .venv/bin/python scripts/build_human_label_queue.py \
+  --output evaluation/human_label_queue_$(date +%F).jsonl
+
+# Edit the queue through an independent human review, then run:
+DATABASE_URL=sqlite:///./human_eval.db AUTO_CREATE_SCHEMA=true \
+  .venv/bin/python scripts/evaluate_human_labels.py \
+  --labels evaluation/human_label_queue_$(date +%F).jsonl \
+  --output evidence/human_evaluation_$(date +%F).json
+```
 
 ## Live-model evaluation
 
 Set `ANTHROPIC_API_KEY`, run the same pipeline with `--agent-mode live`, then evaluate `--mode live`. Store the generated JSON only if you intend to publish the actual model output and its dated cost receipt.
 
-**No live-model run has been committed to this repository as of 2026-08-27.** The Claude agent loop, strict tool use, structured output handling, retry behavior, and token accounting are unit-tested against a fake client (`tests/test_agent.py`) — that proves the code is wired correctly, not that it has executed against the real API. Treat every claim about the live path as reviewed code until a dated run receipt with real token counts, latency, and cost lands in `evidence/`.
+**No live-model run has been committed to this repository as of 2026-09-12.** The Claude agent loop, strict tool use, structured output handling, retry behavior, semantic validation, and failed-attempt token accounting are unit-tested against a fake client (`tests/test_agent.py`) — that proves the code is wired correctly, not that it has executed against the real API. After an authorized run, `scripts/export_live_receipt.py` creates a sanitized receipt with model, status, prompt version, latency, token counts, estimated cost, error category, tool names, and an output hash while omitting raw tool data.
 
 ## Current automated verification
 
-The committed `evidence/pytest_2026-08-27.txt` is the real, unedited output of the command below on that date — not a transcribed number, after the case study previously stated 14 passing tests when CI's own log said 15. It was captured locally against SQLite on Python 3.11; **GitHub Actions is the authoritative run** — it uses real Postgres on Python 3.12 and regenerates on every push. If the two ever disagree, trust the Actions log, not this file.
+The committed `evidence/pytest_2026-09-12.xml` and `evidence/coverage_2026-09-12.xml` are machine-generated local artifacts. They record 29 passing tests and 85.56% line coverage in the local SQLite environment. **GitHub Actions is authoritative** — it uses real Postgres on Python 3.12 and regenerates on every push. If the two disagree, trust Actions.
 
 ```bash
-.venv/bin/pytest --cov=src/revenue_agent --cov-report=term-missing
+.venv/bin/pytest --junitxml=evidence/pytest_$(date +%F).xml \
+  --cov=src/revenue_agent --cov-report=xml:evidence/coverage_$(date +%F).xml \
+  --cov-report=term-missing
 ```

@@ -34,9 +34,9 @@ IngestionService ── idempotency: source + recall_number
 
 1. **Public source boundary.** `OpenFDASource` is the only network-facing signal adapter. Raw response fields are stored before model analysis.
 2. **Decision boundary.** Scoring is deterministic and versioned. Claude can explain the score but a post-generation guard rejects any changed value.
-3. **Model boundary.** Claude sees only the requested account's stored signals and disclosed policy through client tools. Strict schemas constrain tool inputs and the final output.
+3. **Model boundary.** Claude sees only the requested account's stored signals and disclosed policy through client tools. Strict schemas constrain tool inputs and the final output; a semantic support gate rejects observations whose numbers, polarity, recency, entities, or evidence terms are absent from the cited signal.
 4. **Activation boundary.** The public service exposes integration previews, not delivery. Provider adapters fail closed unless both levels of write switches and credentials exist.
-5. **Audit boundary.** Each agent run stores mode, model, prompt version, structured output, tool trace, token counts, estimated cost, latency, status, and sanitized error detail.
+5. **Audit boundary.** Each agent attempt stores mode, model, prompt version, structured output when parseable, tool trace, token counts, estimated cost, latency, status, and sanitized error detail. Provider-reported usage persists even when output is malformed or rejected.
 
 ## Persistence model
 
@@ -52,7 +52,7 @@ IngestionService ── idempotency: source + recall_number
 - An empty or malformed provider response fails the ingestion request.
 - Connection, timeout, 429, and 5xx model failures retry; `retry-after` overrides local backoff.
 - The Claude loop stops after five turns even if the model continues requesting tools.
-- Schema, account, score, signal ID, or source URL mismatch fails the agent run and persists the error.
+- Schema, account, score, signal ID, source URL, or semantic-support mismatch fails the agent run and persists the error, provider usage, and estimated cost.
 - Budget exhaustion prevents a new live call before it starts.
 - Integration previews cannot write. Live adapters fail closed on missing switches or secrets.
 

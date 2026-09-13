@@ -12,7 +12,7 @@ from revenue_agent.models import Account, AgentRun, Signal
 # MockRevenueAgent builds its brief by copying the same account/signal fields
 # evaluate_run checks against, so every metric in an all-mock EvaluationReport is 1.0
 # regardless of whether the grounding logic actually works. These tests instead feed
-# evaluate_run seven deliberately corrupted briefs it never produced itself, and prove
+# evaluate_run deliberately corrupted briefs it never produced itself, and prove
 # each one is rejected for the *specific reason* it should be. A case that silently
 # passes here is a real defect in evaluate_run, not a score to round away.
 
@@ -23,7 +23,7 @@ def test_adversarial_report_catches_every_corruption(seeded_session: Session) ->
 
     report = run_adversarial_evaluation(seeded_session, account)
 
-    assert report.cases == 7
+    assert report.cases == 12
     assert report.caught == report.cases
     assert report.catch_rate == 1.0
     for case in report.results:
@@ -56,6 +56,23 @@ def test_wrong_signal_id_and_source_url_are_rejected(seeded_session: Session) ->
     for label in ("wrong_signal_id", "wrong_source_url"):
         case = next(c for c in report.results if c.label == label)
         assert case.caught, f"{label} was not caught: {case.failures}"
+
+
+def test_valid_citations_cannot_support_unrelated_meaning(seeded_session: Session) -> None:
+    account = seeded_session.scalar(select(Account).order_by(Account.score.desc()))
+    assert account is not None
+    report = run_adversarial_evaluation(seeded_session, account)
+    labels = {
+        "unsupported_fact_valid_citation",
+        "negated_evidence",
+        "stale_as_current",
+        "wrong_entity_valid_citation",
+        "invented_person",
+    }
+    cases = {case.label: case for case in report.results}
+    assert labels <= cases.keys()
+    for label in labels:
+        assert cases[label].caught, f"{label} was not caught: {cases[label].failures}"
 
 
 def test_a_correct_brief_still_passes(seeded_session: Session) -> None:

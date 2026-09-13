@@ -205,3 +205,72 @@ def test_grounding_rejection_is_categorized_end_to_end(
     assert run.error_type == "grounding_rejected"
     assert "GroundingRejected" in run.error_message
     assert "changed the deterministic score" in run.error_message
+    assert run.input_tokens == 150
+    assert run.output_tokens == 60
+    assert run.estimated_cost_usd > 0
+    assert run.output is not None
+
+
+def test_malformed_paid_response_keeps_usage_and_cost(
+    seeded_session: Session, settings: Settings
+) -> None:
+    account = seeded_session.scalar(select(Account).order_by(Account.name))
+    assert account is not None
+    fake = FakeClient([response([{"type": "text", "text": "not valid json"}], 90, 25)])
+    live_settings = settings.model_copy(
+        update={
+            "anthropic_api_key": SecretStr("test-key"),
+            "claude_input_usd_per_million": 2.0,
+            "claude_output_usd_per_million": 10.0,
+        }
+    )
+
+    run = ClaudeRevenueAgent(live_settings, client=fake, sleep=lambda _: None).analyze(
+        seeded_session, account
+    )
+
+    assert run.status == "failed"
+    assert run.error_type == "agent_error"
+    assert run.input_tokens == 90
+    assert run.output_tokens == 25
+    assert run.estimated_cost_usd == 0.00043
+
+
+def test_valid_citation_with_unsupported_fact_is_rejected(
+    seeded_session: Session, settings: Settings
+) -> None:
+    account = seeded_session.scalar(select(Account).order_by(Account.name))
+    assert account is not None
+    signal = seeded_session.scalar(select(Signal).where(Signal.account_id == account.id))
+    assert signal is not None
+    brief = {
+        "account_name": account.name,
+        "qualification": "warm",
+        "deterministic_score": account.score,
+        "score_summary": "The disclosed deterministic trigger score is unchanged.",
+        "observations": [
+            {
+                "fact": "The company raised $50 million in new funding.",
+                "signal_id": signal.id,
+                "source_url": signal.source_url,
+            }
+        ],
+        "hypotheses": ["Hypothesis: a quality leader may value faster monitoring."],
+        "recommended_action": "human_review",
+        "role_target": "VP Quality",
+        "outreach_angle": "Ask a human reviewer whether the public signal is relevant.",
+        "risks": ["A public trigger does not prove purchase intent."],
+        "confidence": 0.4,
+    }
+    fake = FakeClient([response([{"type": "text", "text": json.dumps(brief)}], 120, 40)])
+    live_settings = settings.model_copy(update={"anthropic_api_key": SecretStr("test-key")})
+
+    run = ClaudeRevenueAgent(live_settings, client=fake, sleep=lambda _: None).analyze(
+        seeded_session, account
+    )
+
+    assert run.status == "failed"
+    assert run.error_type == "grounding_rejected"
+    assert "unsupported" in (run.error_message or "")
+    assert run.input_tokens == 120
+    assert run.output_tokens == 40
