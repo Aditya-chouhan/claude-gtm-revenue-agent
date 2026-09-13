@@ -63,6 +63,12 @@ DATABASE_URL=sqlite:///./human_eval.db AUTO_CREATE_SCHEMA=true \
   --output evidence/human_evaluation_$(date +%F).json
 ```
 
+## AI review — separate from human evaluation
+
+All 40 pairs were reviewed by the OpenAI assistant on 2026-09-13. Per-row `ai_label`, `ai_rationale`, and reviewer provenance are in `evaluation/ai_review_2026-09-13.jsonl`; the scope and limitations are in `evidence/ai_review_2026-09-13.md`. Ten claims were judged supported and 30 unsupported by their cited sources.
+
+These AI fields do not replace `human_label` or count toward the human evaluator's minimum. The first queue row has one user confirmation, explicitly marked AI-assisted because the assistant suggested the answer first. The remaining human fields stay null. The four repeated templates and concentrated source sample are diagnostic, not a representative held-out benchmark; no independent human or live-model quality claim follows from this review.
+
 ## Live-model evaluation
 
 Set `ANTHROPIC_API_KEY`, run the same pipeline with `--agent-mode live`, then evaluate `--mode live`. Store the generated JSON only if you intend to publish the actual model output and its dated cost receipt.

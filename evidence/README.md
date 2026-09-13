@@ -15,4 +15,6 @@ the artifact itself.
 
 Regenerate these artifacts with the documented commands; don't hand-edit the committed copies.
 
-The 40-row file under `evaluation/` is an intentionally unlabelled human-review queue, not an evidence result. No human-evaluation report or live Claude inference receipt is committed as of 2026-09-12.
+The 40-row file under `evaluation/` began as an intentionally unlabelled human-review queue. Its first row now has one AI-assisted user confirmation; the other human fields remain null. No independent human-evaluation report or live Claude inference receipt is claimed.
+
+`ai_review_2026-09-13.md` summarizes the assistant's review of all 40 pairs: 10 supported and 30 unsupported by their cited sources. The per-row AI judgments are in `evaluation/ai_review_2026-09-13.jsonl`, in separate fields that do not count as human labels. This AI-authored diagnostic review is not a machine-generated test report or a representative quality benchmark.
