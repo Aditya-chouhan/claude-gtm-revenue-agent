@@ -1,6 +1,6 @@
 {
   "data_classification": "real_public_live_run_receipt",
-  "run_at": "2026-10-12T10:50:47.918710Z",
+  "run_at": "2026-10-19T08:53:43.580032Z",
   "source": "https://api.fda.gov/drug/enforcement.json",
   "source_mode": "live",
   "raw_records_received": 25,
@@ -8,8 +8,8 @@
   "signals_updated": 0,
   "records_skipped": 1,
   "skip_reason": "1 record(s) skipped: missing_recalling_firm_or_recall_number.",
-  "accounts_touched": 10,
-  "scored_accounts_in_store": 10,
+  "accounts_touched": 13,
+  "scored_accounts_in_store": 13,
   "agent_mode": "none",
   "accounts_analyzed": 0,
   "integration_mode": "preview_only",
