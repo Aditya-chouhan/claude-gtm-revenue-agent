@@ -1,6 +1,6 @@
 {
   "data_classification": "real_public_live_run_receipt",
-  "run_at": "2026-11-09T11:33:17.943052Z",
+  "run_at": "2026-11-16T11:18:24.762841Z",
   "source": "https://api.fda.gov/drug/enforcement.json",
   "source_mode": "live",
   "raw_records_received": 25,
